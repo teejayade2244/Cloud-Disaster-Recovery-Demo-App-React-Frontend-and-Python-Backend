@@ -13,7 +13,7 @@ export default function Login({ onLoginSuccess }) {
     const handleLogin = async (e) => {
         e.preventDefault()
         setLoading(true)
-        const API_URL = "http://127.0.0.1:8000/api/v1/users/login"
+        const API_URL = "http://my-api:8000/api/v1/users/login"
 
         try {
             const response = await fetch(API_URL, {
