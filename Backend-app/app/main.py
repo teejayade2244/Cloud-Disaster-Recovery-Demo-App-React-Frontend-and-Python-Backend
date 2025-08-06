@@ -6,7 +6,15 @@ from pydantic import BaseModel
 from passlib.context import CryptContext
 from db import SessionLocal, engine, Base
 from dotenv import load_dotenv
+from fastapi import FastAPI
+# Your other routes...
 load_dotenv()
+
+app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 # Pydantic models for request and response validation
 class UserCreate(BaseModel):
