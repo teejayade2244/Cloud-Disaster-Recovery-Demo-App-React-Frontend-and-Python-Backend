@@ -1,0 +1,30 @@
+# Ignore node_modules (should not be copied into the image)
+node_modules
+
+# Ignore build output (will be generated in the container)
+dist
+build
+
+# Ignore logs
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Ignore environment files
+.env
+.env.*
+
+# Ignore OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Ignore test and coverage files
+coverage
+*.test.*
+*.spec.*
+
+# Ignore git files
+.git
+.gitignore
