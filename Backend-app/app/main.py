@@ -53,7 +53,7 @@ origins = [
     "http://localhost:3000",
     "http://localhost:5173",  
     "http://127.0.0.1:5173",  
-    "http://auraflow:8080",
+    "http://3.8.195.179:8080",
 ]
 
 app.add_middleware(
