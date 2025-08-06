@@ -13,7 +13,7 @@ export default function SignUp() {
     const handleSignUp = async (e) => {
         e.preventDefault()
         setLoading(true)
-           const API_URL = "http://3.8.195.179:8000/api/v1/users/signup"
+        const API_URL = "http://3.8.195.179:8000/api/v1/users/signup"
 
         try {
             const response = await fetch(API_URL, {
