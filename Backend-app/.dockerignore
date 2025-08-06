@@ -59,5 +59,6 @@ test_*.py
 *.log
 logs/
 
-# Environment files
+# Environment files (NEVER include in Docker image)
 .env*
+*.env

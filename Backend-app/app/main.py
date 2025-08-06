@@ -9,12 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 # Your other routes...
 load_dotenv()
-
 app = FastAPI()
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
 
 # Pydantic models for request and response validation
 class UserCreate(BaseModel):
@@ -70,6 +65,11 @@ app.add_middleware(
 
 # Create the database tables if they don't exist
 Base.metadata.create_all(bind=engine)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 
 @app.get("/")
 def read_root():
