@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from .db import SessionLocal, engine, Base
-from dotenv import load_dotenv
-from fastapi import FastAPI
+from dotenv import load_dotenv # Keep for local dev, won't be used in K8s with env vars
+
 # Your other routes...
-load_dotenv()
+load_dotenv() # Still useful for local testing outside Kubernetes
 app = FastAPI()
 
 # Pydantic models for request and response validation
@@ -25,7 +25,7 @@ class UserResponse(BaseModel):
     email: str
 
     class Config:
-        orm_mode = True
+        orm_mode = True # Consider renaming to from_attributes = True for Pydantic v2 to remove warning
 
 # Hash passwords for security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -49,12 +49,22 @@ class User(Base):
 
 # Initialize the FastAPI app
 app = FastAPI(title="User Authentication API")
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",  
-    "http://127.0.0.1:5173",  
-    "http://3.8.195.179:8080",
-]
+
+# --- CRITICAL CHANGE: Read origins from an environment variable ---
+# It expects a comma-separated string, e.g., "http://localhost:3000,https://myfrontend.com"
+CORS_ORIGINS_ENV = os.getenv("CORS_ALLOWED_ORIGINS", "") # Default to empty string if not set
+
+# Split the string into a list, stripping whitespace
+origins = [origin.strip() for origin in CORS_ORIGINS_ENV.split(',') if origin.strip()]
+
+# Add common local development origins if you still want them for local testing
+# This part will be ignored when CORS_ALLOWED_ORIGINS is set in Kubernetes
+if not CORS_ORIGINS_ENV:
+    origins.extend([
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ])
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,7 +81,6 @@ Base.metadata.create_all(bind=engine)
 async def health_check():
     return {"status": "healthy"}
 
-
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the User Authentication API!"}
@@ -79,35 +88,25 @@ def read_root():
 # --- User Signup Endpoint ---
 @app.post("/api/v1/users/signup", status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if a user with this email already exists
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
-    # Hash the password for security before storing it
     hashed_password = pwd_context.hash(user.password)
-    
-    # Create a new user instance and add it to the database
     new_user = User(email=user.email, hashed_password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-
     return {"message": "User successfully registered!"}
 
 # --- User Login Endpoint ---
 @app.post("/api/v1/users/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
-    # Find the user by their email
     db_user = db.query(User).filter(User.email == user.email).first()
-    
-    # If no user is found or the password is incorrect, raise an error
     if not db_user or not pwd_context.verify(user.password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # If successful, return a success message
     return {"message": "Login successful!"}
