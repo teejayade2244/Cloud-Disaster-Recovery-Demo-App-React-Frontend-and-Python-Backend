@@ -134,7 +134,7 @@ export default function TodoList({ onLogout }) {
             // });
             // if (response.ok) {
             //   setTodos(todos.map(todo =>
-            //     todo.id === id ? { ...todo, completed: !todo.completed } : todo
+
             //   ));
             //   toast.info("To-do status updated!");
             // } else {

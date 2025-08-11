@@ -14,8 +14,7 @@ export default function Login({ onLoginSuccess }) {
         e.preventDefault()
         setLoading(true)
         const API_URL =
-            "http://3.8.195.179:8000/api/v1/users/login"
-
+            "http://internal-k8s-auraflow-fastapib-52bb77b38e-17643138.eu-west-2.elb.amazonaws.com/api/v1/users/login"
         try {
             const response = await fetch(API_URL, {
                 method: "POST",
