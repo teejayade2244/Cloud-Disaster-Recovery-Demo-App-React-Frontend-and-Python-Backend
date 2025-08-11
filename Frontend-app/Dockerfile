@@ -41,7 +41,7 @@ RUN chown -R appuser:appuser /var/run/nginx.pid
 USER appuser
 
 # Expose port 80 for web traffic
-EXPOSE 80
+EXPOSE 8080
 
 # Add healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
