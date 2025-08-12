@@ -4,13 +4,13 @@ name: Backend CI/CD Pipeline
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'Backend-app/**' 
       - '.github/workflows/backend-ci-cd.yml' 
   pull_request:
     branches:
-      - main
+      - master
     paths:
       - 'Backend-app/**'
       - '.github/workflows/backend-ci-cd.yml'
