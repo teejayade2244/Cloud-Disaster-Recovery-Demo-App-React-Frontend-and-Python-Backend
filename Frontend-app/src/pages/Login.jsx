@@ -13,8 +13,7 @@ export default function Login({ onLoginSuccess }) {
     const handleLogin = async (e) => {
         e.preventDefault()
         setLoading(true)
-        const API_URL =
-            "http://internal-k8s-auraflow-fastapib-52bb77b38e-17643138.eu-west-2.elb.amazonaws.com/api/v1/users/login"
+        const API_URL = "/api/v1/users/login"
         try {
             const response = await fetch(API_URL, {
                 method: "POST",
