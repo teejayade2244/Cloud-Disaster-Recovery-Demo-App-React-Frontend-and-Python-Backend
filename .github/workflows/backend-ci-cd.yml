@@ -112,7 +112,7 @@ jobs:
           echo "ECR_IMAGE_URI=$ECR_URI" >> $GITHUB_OUTPUT
 
       - name: Setup kubectl
-        uses: aws-actions/amazon-eks-setup@v2
+        uses: aws-actions/amazon-eks-update-kubeconfig-action@v2
         with:
           cluster-name: ${{ vars.EKS_CLUSTER_NAME }} 
           aws-region: eu-west-2
@@ -123,13 +123,20 @@ jobs:
         run: |
           NEW_IMAGE_URI="${{ steps.ecr_image_uri.outputs.ECR_IMAGE_URI }}"
           OLD_IMAGE_PREFIX="899411341244.dkr.ecr.eu-west-2.amazonaws.com/aura-flow-production-eu-west-2-backend-api:"
-          MANIFEST_FILE="manifest-repo/kubernetes/backend.yaml"
+          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml"
 
-       
+          
+          if [ ! -f "${MANIFEST_FILE}" ]; then
+            echo "Error: Manifest file ${MANIFEST_FILE} not found"
+            ls -la AWS-Cloud-Disaster-Recovery-Manifest-Repo/
+            ls -la AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/ || echo "kubernetes directory not found"
+            exit 1
+          fi
+
           sed -i "s|image: ${OLD_IMAGE_PREFIX}.*|image: ${NEW_IMAGE_URI}|g" "${MANIFEST_FILE}"
 
           # Check if the file was modified
-          if git -C manifest-repo diff --exit-code "${MANIFEST_FILE}"; then
+          if git -C AWS-Cloud-Disaster-Recovery-Manifest-Repo diff --exit-code "${MANIFEST_FILE}"; then
             echo "::set-output name=file_modified::false"
           else
             echo "::set-output name=file_modified::true"

@@ -77,7 +77,6 @@ engine = create_engine(
 # Create a session local class for each request.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for declarative models.
 Base = declarative_base()
 
 # Dependency to get a database session for each request.
@@ -87,6 +86,9 @@ def get_db():
         yield db
     finally:
         db.close()
+        
+        
+        
 # import os
 # from sqlalchemy import create_engine
 # from sqlalchemy.orm import sessionmaker
