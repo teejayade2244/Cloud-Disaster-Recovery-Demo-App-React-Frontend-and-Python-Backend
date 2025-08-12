@@ -25,6 +25,14 @@ jobs:
     steps:
       - name: Checkout repository code
         uses: actions/checkout@v4
+      
+      - name: Checkout Kubernetes Manifests repository
+        uses: actions/checkout@v4
+        with:
+          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo 
+          ref: master
+          token: ${{ secrets.REPO_PAT }} 
+          path: AWS-Cloud-Disaster-Recovery-Manifest-Repo
 
       # --- Configure AWS Credentials using OIDC ---
       - name: Configure AWS Credentials
@@ -102,3 +110,44 @@ jobs:
         run: |
           ECR_URI="${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.sha }}"
           echo "ECR_IMAGE_URI=$ECR_URI" >> $GITHUB_OUTPUT
+
+      - name: Setup kubectl
+        uses: aws-actions/amazon-eks-setup@v2
+        with:
+          cluster-name: ${{ vars.EKS_CLUSTER_NAME }} 
+          aws-region: eu-west-2
+
+      # --- Update Kubernetes Manifest Image in the cloned repository ---
+      - name: Update Kubernetes Manifest Image
+        id: update_manifest
+        run: |
+          NEW_IMAGE_URI="${{ steps.ecr_image_uri.outputs.ECR_IMAGE_URI }}"
+          OLD_IMAGE_PREFIX="899411341244.dkr.ecr.eu-west-2.amazonaws.com/aura-flow-production-eu-west-2-backend-api:"
+          MANIFEST_FILE="manifest-repo/kubernetes/backend.yaml"
+
+       
+          sed -i "s|image: ${OLD_IMAGE_PREFIX}.*|image: ${NEW_IMAGE_URI}|g" "${MANIFEST_FILE}"
+
+          # Check if the file was modified
+          if git -C manifest-repo diff --exit-code "${MANIFEST_FILE}"; then
+            echo "::set-output name=file_modified::false"
+          else
+            echo "::set-output name=file_modified::true"
+          fi
+
+      # --- Commit and Push the updated Manifest (Only if modified) ---
+      - name: Commit and Push Manifest Changes
+        if: steps.update_manifest.outputs.file_modified == 'true'
+        run: |
+          cd manifest-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kubernetes/backend.yaml
+          git commit -m "chore: Update backend image to ${{ github.sha }} [skip ci]"
+          git push origin master
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
+      # --- Deploy to EKS Cluster using the now updated manifest (from the repo) ---
+      - name: Deploy to EKS
+        run: kubectl apply -f AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml
