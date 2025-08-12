@@ -1,0 +1,106 @@
+# .github/workflows/backend-ci-cd.yml
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Backend-app/**' 
+      - '.github/workflows/backend-ci-cd.yml' 
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Backend-app/**'
+      - '.github/workflows/backend-ci-cd.yml'
+
+# Permissions required for OIDC authentication and checking out code
+permissions:
+  id-token: write 
+  contents: read  
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest 
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      # --- Configure AWS Credentials using OIDC ---
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }} 
+          aws-region: eu-west-2 
+
+      # --- Install Python dependencies for scanning (for fs scan if needed) ---
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' 
+
+      - name: Install Backend Python Dependencies
+        working-directory: ./Backend-app 
+        run: pip install -r requirements.txt 
+
+      # --- Scan Dependencies for Vulnerabilities (using Trivy FS Scan) ---
+      - name: Run Trivy FS Scan for Dependencies
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs' 
+          input: './Backend-app'
+          format: 'table'
+          severity: 'HIGH,CRITICAL' 
+          exit-code: 1 
+
+      # --- Docker Build ---
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          aws-region: eu-west-2 
+
+      - name: Build Backend Docker Image
+        working-directory: ./Backend-app
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: ${{ github.sha }} 
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+      # --- Verify ECR Access (Pre-push check) ---
+      - name: Verify ECR Access
+        run: |
+          aws ecr describe-repositories --repository-names ${{ vars.ECR_REPOSITORY_NAME }} --region eu-west-2
+
+      # --- Scan Docker Image with Trivy ---
+      - name: Run Trivy Image Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.sha }} 
+          format: 'table'
+          severity: 'HIGH,CRITICAL' 
+          exit-code: 1
+          ignore-unfixed: true 
+          vuln-type: 'os,library' 
+          security-checks: 'vuln,config,secret' 
+
+      # --- Docker Push to ECR ---
+      - name: Push Backend Docker Image to ECR
+        working-directory: ./Backend-app
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      # --- Get ECR Image URI for next stages (e.g., K8s deployment) ---
+      - name: Get ECR Image URI
+        id: ecr_image_uri
+        run: |
+          ECR_URI="${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          echo "ECR_IMAGE_URI=$ECR_URI" >> $GITHUB_OUTPUT
