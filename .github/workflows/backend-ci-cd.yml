@@ -14,6 +14,7 @@ on:
     paths:
       - 'Backend-app/**'
       - '.github/workflows/backend-ci-cd.yml'
+
 # Permissions required for OIDC authentication and checking out code
 permissions:
   id-token: write 
