@@ -187,10 +187,8 @@ jobs:
 
       - name: Deploy to Primary EKS Cluster
         run: |
-          # Change directory to the manifest repository before running kubectl
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          kubectl apply -f kubernetes/backend-eu-west-2.yaml # Path is now relative to this directory
-
+          kubectl apply -f kubernetes/backend-eu-west-2.yaml 
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
       # ----------------------------------------------------------------------
@@ -241,4 +239,4 @@ jobs:
         run: |
           # Change directory to the manifest repository before running kubectl
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          kubectl replace -f kubernetes/backend-us-east-1.yaml --force # Path is now relative to this directory
+          kubectl apply -f kubernetes/backend-us-east-1.yaml 
