@@ -220,6 +220,7 @@ jobs:
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
       - name: Deploy to DR EKS Cluster
         run: |
           # Change directory to the manifest repository before running kubectl
