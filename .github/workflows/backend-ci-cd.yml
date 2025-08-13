@@ -4,8 +4,8 @@ on:
     branches:
       - master
     paths:
-      - 'Backend-app/**' 
-      - '.github/workflows/backend-ci-cd.yml' 
+      - 'Backend-app/**'
+      - '.github/workflows/backend-ci-cd.yml'
   pull_request:
     branches:
       - "*"
@@ -15,8 +15,8 @@ on:
 
 # Permissions required for OIDC authentication and checking out code
 permissions:
-  id-token: write 
-  contents: read  
+  id-token: write
+  contents: read
 
 jobs:
   build-and-push:
@@ -25,149 +25,143 @@ jobs:
     steps:
       - name: Checkout repository code
         uses: actions/checkout@v4
-      
+
       - name: Checkout Kubernetes Manifests repository
         uses: actions/checkout@v4
         with:
-          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo 
+          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo
           ref: master
-          token: ${{ secrets.REPO_PAT }} 
+          token: ${{ secrets.REPO_PAT }}
           path: AWS-Cloud-Disaster-Recovery-Manifest-Repo
 
-      # --- Configure AWS Credentials using OIDC ---
-      - name: Configure AWS Credentials
+      # --- Configure AWS Credentials using OIDC (for eu-west-2 by default) ---
+      # This initial configuration assumes the primary cluster and ECR are in eu-west-2
+      - name: Configure AWS Credentials (eu-west-2)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }} 
-          aws-region: eu-west-2 
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: eu-west-2 # Primary region
 
       # --- Install Python dependencies for scanning (for fs scan if needed) ---
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12' 
+          python-version: '3.12'
 
       - name: Install Backend Python Dependencies
-        working-directory: ./Backend-app 
-        run: pip install -r requirements.txt 
+        working-directory: ./Backend-app
+        run: pip install -r requirements.txt
 
       # --- Scan Dependencies for Vulnerabilities (using Trivy FS Scan) ---
       - name: Run Trivy FS Scan for Dependencies
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs' 
+          scan-type: 'fs'
           input: './Backend-app'
           format: 'table'
-          severity: 'HIGH,CRITICAL' 
-          exit-code: 1 
+          severity: 'HIGH,CRITICAL'
+          exit-code: 1
 
-      # --- Docker Build ---
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-          aws-region: eu-west-2 
-
+      # --- Docker Build (happens only once) ---
       - name: Build Backend Docker Image
         working-directory: ./Backend-app
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: ${{ github.sha }} 
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-
-      # --- Verify ECR Access (Pre-push check) ---
-      - name: Verify ECR Access
-        run: |
-          aws ecr describe-repositories --repository-names ${{ vars.ECR_REPOSITORY_NAME }} --region eu-west-2
-
-      # --- Scan Docker Image with Trivy ---
-      - name: Run Trivy Image Scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.sha }} 
-          format: 'table'
-          severity: 'HIGH,CRITICAL' 
-          exit-code: 1
-          ignore-unfixed: true 
-          vuln-type: 'os,library' 
-          security-checks: 'vuln,config,secret' 
-
-      # --- Docker Push to ECR ---
-      - name: Push Backend Docker Image to ECR
-        working-directory: ./Backend-app
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} # This is just for naming the local image
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          docker build -t ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG .
+
+      # --- Login and Push to Primary ECR (eu-west-2) ---
+      - name: Login to Amazon ECR (eu-west-2)
+        id: login-ecr-primary
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          aws-region: eu-west-2
+
+      - name: Push Backend Docker Image to Primary ECR (eu-west-2)
+        working-directory: ./Backend-app
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-primary.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} 
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # --- Get ECR Image URI for next stages (e.g., K8s deployment) ---
-      - name: Get ECR Image URI
-        id: ecr_image_uri
+      - name: Get Primary ECR Image URI
+        id: ecr_image_uri_primary
         run: |
-          ECR_URI="${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.sha }}"
-          echo "ECR_IMAGE_URI=$ECR_URI" >> $GITHUB_OUTPUT
+          ECR_URI="${{ steps.login-ecr-primary.outputs.registry }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          echo "ECR_IMAGE_URI_PRIMARY=$ECR_URI" >> $GITHUB_OUTPUT
 
-      # - name: Setup kubectl
-      #   run: |
-      #     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      #     sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      #     aws eks update-kubeconfig --region eu-west-2 --name ${{ vars.EKS_CLUSTER_NAME }}
+      # --- Login and Push to DR ECR (us-east-1) ---
+      - name: Configure AWS Credentials (us-east-1) for DR ECR
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }} 
+          aws-region: us-east-1
 
-      # --- Update Kubernetes Manifest Image in the cloned repository ---
-            # --- Update Kubernetes Manifest ---
-      - name: Update Kubernetes Manifest Image
-        id: update_manifest
-        run: |
-          # Verify the manifest repository was checked out correctly
-          MANIFEST_DIR="AWS-Cloud-Disaster-Recovery-Manifest-Repo"
-          if [ ! -d "$MANIFEST_DIR" ]; then
-            echo "::error::Manifest repository directory not found"
-            ls -la
-            exit 1
-          fi
+      - name: Login to Amazon ECR (us-east-1)
+        id: login-ecr-dr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          aws-region: us-east-1
 
-          MANIFEST_FILE="$MANIFEST_DIR/kubernetes/backend.yaml"
-          if [ ! -f "$MANIFEST_FILE" ]; then
-            echo "::error::Manifest file not found at $MANIFEST_FILE"
-            ls -la "$MANIFEST_DIR/kubernetes/" || echo "kubernetes directory not found"
-            exit 1
-          fi
-
-          NEW_IMAGE_URI="${{ steps.ecr_image_uri.outputs.ECR_IMAGE_URI }}"
-          OLD_IMAGE_PREFIX="899411341244.dkr.ecr.eu-west-2.amazonaws.com/aura-flow-production-eu-west-2-backend-api:"
-          
-          echo "Updating image in $MANIFEST_FILE"
-          echo "Old image pattern: $OLD_IMAGE_PREFIX"
-          echo "New image: $NEW_IMAGE_URI"
-          
-          sed -i "s|image: ${OLD_IMAGE_PREFIX}.*|image: ${NEW_IMAGE_URI}|g" "$MANIFEST_FILE"
-
-          # Check if the file was modified
-          cd "$MANIFEST_DIR"
-          if git diff --exit-code kubernetes/backend.yaml; then
-            echo "::set-output name=file_modified::false"
-          else
-            echo "::set-output name=file_modified::true"
-            git --no-pager diff kubernetes/backend.yaml
-          fi
-
-      # --- Commit and Push the updated Manifest (Only if modified) ---
-      - name: Commit and Push Manifest Changes
-        if: steps.update_manifest.outputs.file_modified == 'true'
-        run: |
-          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add kubernetes/backend.yaml
-          git commit -m "chore: Update backend image to ${{ github.sha }} [skip ci]"
-          git push origin master
+      - name: Push Backend Docker Image to DR ECR (us-east-1)
+        working-directory: ./Backend-app
         env:
-          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+          ECR_REGISTRY: ${{ steps.login-ecr-dr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.DR_ECR_REPOSITORY_NAME }} 
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # --- Deploy to EKS Cluster using the now updated manifest (from the repo) ---
-      - name: Deploy to EKS
-        run: kubectl apply -f AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml
+      - name: Get DR ECR Image URI
+        id: ecr_image_uri_dr
+        run: |
+          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.DR_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          echo "ECR_IMAGE_URI_DR=$ECR_URI" >> $GITHUB_OUTPUT
+
+      # --- Deploy to Primary EKS Cluster (eu-west-2) ---
+      - name: Configure AWS Credentials (eu-west-2) for Primary EKS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: eu-west-2
+
+      - name: Update Manifest for Primary Cluster and Deploy
+        run: |
+          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml"
+          NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
+          echo "Updating manifest ($MANIFEST_FILE) for Primary Cluster with image: $NEW_IMAGE_URI"
+          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+          cat "$MANIFEST_FILE" # Optional: Print for debugging
+
+          echo "Deploying to Primary EKS Cluster (${{ vars.EKS_CLUSTER_NAME }})"
+          kubectl apply -f "$MANIFEST_FILE"
+
+      # --- Deploy to DR EKS Cluster (us-east-1) ---
+      - name: Configure AWS Credentials (us-east-1) for DR EKS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup kubectl for DR Cluster
+        uses: aws-actions/amazon-eks-setup@v2
+        with:
+          cluster-name: ${{ vars.DR_EKS_CLUSTER_NAME }} # DR EKS cluster name
+          aws-region: us-east-1
+
+      - name: Update Manifest for DR Cluster and Deploy
+        run: |
+          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml"
+          NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr.outputs.ECR_IMAGE_URI_DR }}"
+          echo "Updating manifest ($MANIFEST_FILE) for DR Cluster with image: $NEW_IMAGE_URI"
+          # Use sed to replace the entire image line
+          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+          cat "$MANIFEST_FILE" # Optional: Print for debugging
+
+          echo "Deploying to DR EKS Cluster (${{ vars.DR_EKS_CLUSTER_NAME }})"
+          kubectl apply -f "$MANIFEST_FILE"
