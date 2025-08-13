@@ -226,4 +226,4 @@ jobs:
         run: |
           # Change directory to the manifest repository before running kubectl
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          kubectl apply -f kubernetes/backend-us-east-1.yaml # Path is now relative to this directory
+          kubectl replace -f your-manifest.yaml --force
