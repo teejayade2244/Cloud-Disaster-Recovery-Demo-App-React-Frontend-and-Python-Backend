@@ -107,7 +107,7 @@ jobs:
           ECR_REPOSITORY: ${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }} 
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker tag $FRONTEND_ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Get Primary Frontend ECR Image URI
@@ -134,9 +134,10 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-dr.outputs.registry }}
           ECR_REPOSITORY: ${{ vars.DR_FRONTEND_ECR_REPOSITORY_NAME }} 
+          CURRENT_TAG: ${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker tag $FRONTEND_ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $CURRENT_TAG:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Get DR Frontend ECR Image URI
