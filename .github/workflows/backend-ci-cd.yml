@@ -5,37 +5,40 @@ on:
       - master
     paths:
       - 'Backend-app/**'
+      # Remove kubernetes/backend.yaml from here - it's handled by gitops now
       - '.github/workflows/backend-ci-cd.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'Backend-app/**'
+      # Remove kubernetes/backend.yaml from here - it's handled by gitops now
       - '.github/workflows/backend-ci-cd.yml'
 
-# Permissions required for OIDC authentication and checking out code
+# Permissions required for OIDC authentication and checking out/pushing code
 permissions:
   id-token: write
-  contents: read
+  contents: write # REQUIRED for actions/checkout to checkout and PUSH changes to the manifest repo
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout repository code
+      - name: Checkout Backend-app repository code
         uses: actions/checkout@v4
+        with:
+          path: Backend-app # Checkout the current repo into 'Backend-app' directory
 
       - name: Checkout Kubernetes Manifests repository
         uses: actions/checkout@v4
         with:
-          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          ref: master
-          token: ${{ secrets.REPO_PAT }}
+          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo # Your manifests repo
+          ref: master # Assuming your manifests are on 'master' branch
+          token: ${{ secrets.REPO_PAT }} # Personal Access Token for write access
           path: AWS-Cloud-Disaster-Recovery-Manifest-Repo
 
       # --- Configure AWS Credentials using OIDC (for eu-west-2 by default) ---
-      # This initial configuration assumes the primary cluster and ECR are in eu-west-2
       - name: Configure AWS Credentials (eu-west-2)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -66,7 +69,7 @@ jobs:
       - name: Build Backend Docker Image
         working-directory: ./Backend-app
         env:
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} # This is just for naming the local image
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} # For local image tag
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG .
@@ -82,7 +85,7 @@ jobs:
         working-directory: ./Backend-app
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-primary.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} 
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} # Primary ECR repo name
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker tag ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -98,7 +101,7 @@ jobs:
       - name: Configure AWS Credentials (us-east-1) for DR ECR
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }} 
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }} # Same role, but for the DR region ECR
           aws-region: us-east-1
 
       - name: Login to Amazon ECR (us-east-1)
@@ -111,7 +114,7 @@ jobs:
         working-directory: ./Backend-app
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-dr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.DR_ECR_REPOSITORY_NAME }} 
+          ECR_REPOSITORY: ${{ vars.DR_ECR_REPOSITORY_NAME }} # DR ECR repo name
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker tag ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -123,39 +126,90 @@ jobs:
           ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.DR_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
           echo "ECR_IMAGE_URI_DR=$ECR_URI" >> $GITHUB_OUTPUT
 
-      # --- Deploy to Primary EKS Cluster (eu-west-2) ---
+      # ----------------------------------------------------------------------
+      # --- CD START: Deploy to Primary EKS Cluster (eu-west-2) ---
+      # ----------------------------------------------------------------------
+
       - name: Configure AWS Credentials (eu-west-2) for Primary EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: eu-west-2
 
-      - name: Update Manifest for Primary Cluster and Deploy
+      - name: Update Primary Manifest and Commit
+        id: update_primary_manifest
         run: |
-          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml"
+          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
-          echo "Updating manifest ($MANIFEST_FILE) for Primary Cluster with image: $NEW_IMAGE_URI"
+          
+          # Replace the image in the PRIMARY manifest
           sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
-          cat "$MANIFEST_FILE" # Optional: Print for debugging
+          
+          # Check if the file was modified and prepare for commit
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          if git diff --exit-code kubernetes/backend-eu-west-2.yaml; then
+            echo "::set-output name=file_modified::false"
+          else
+            echo "::set-output name=file_modified::true"
+          fi
+          # Go back to the root of the runner's workspace
+          cd -
 
-          echo "Deploying to Primary EKS Cluster (${{ vars.EKS_CLUSTER_NAME }})"
-          kubectl apply -f "$MANIFEST_FILE"
+      - name: Commit and Push Primary Manifest Changes
+        if: steps.update_primary_manifest.outputs.file_modified == 'true'
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kubernetes/backend-eu-west-2.yaml
+          git commit -m "chore: Update primary backend image to ${{ github.sha }} [skip ci]"
+          git push origin master
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
 
-      # --- Deploy to DR EKS Cluster (us-east-1) ---
+      - name: Deploy to Primary EKS Cluster
+        run: kubectl apply -f AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml
+
+      # ----------------------------------------------------------------------
+      # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
+      # ----------------------------------------------------------------------
+
       - name: Configure AWS Credentials (us-east-1) for DR EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Update Manifest for DR Cluster and Deploy
+      - name: Update DR Manifest and Commit
+        id: update_dr_manifest
         run: |
-          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml"
+          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-us-east-1.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr.outputs.ECR_IMAGE_URI_DR }}"
-          echo "Updating manifest ($MANIFEST_FILE) for DR Cluster with image: $NEW_IMAGE_URI"
-          # Use sed to replace the entire image line
-          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
-          cat "$MANIFEST_FILE" # Optional: Print for debugging
 
-          echo "Deploying to DR EKS Cluster (${{ vars.DR_EKS_CLUSTER_NAME }})"
-          kubectl apply -f "$MANIFEST_FILE"
+          # Replace the image in the DR manifest
+          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+
+          # Check if the file was modified and prepare for commit
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          if git diff --exit-code kubernetes/backend-us-east-1.yaml; then
+            echo "::set-output name=file_modified::false"
+          else
+            echo "::set-output name=file_modified::true"
+          fi
+          # Go back to the root of the runner's workspace
+          cd -
+
+      - name: Commit and Push DR Manifest Changes
+        if: steps.update_dr_manifest.outputs.file_modified == 'true'
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kubernetes/backend-us-east-1.yaml
+          git commit -m "chore: Update DR backend image to ${{ github.sha }} [skip ci]"
+          git push origin master
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
+      - name: Deploy to DR EKS Cluster
+        run: kubectl apply -f AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-us-east-1.yaml
