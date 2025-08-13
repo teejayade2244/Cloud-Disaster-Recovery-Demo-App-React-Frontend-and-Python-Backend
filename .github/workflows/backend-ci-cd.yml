@@ -25,8 +25,6 @@ jobs:
     steps:
       - name: Checkout Backend-app repository code
         uses: actions/checkout@v4
-        with:
-          path: Backend-app 
 
       - name: Checkout Kubernetes Manifests repository
         uses: actions/checkout@v4
