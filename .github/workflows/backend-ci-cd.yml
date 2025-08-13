@@ -137,32 +137,31 @@ jobs:
       - name: Update Primary Manifest and Commit
         id: update_primary_manifest
         run: |
-          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml"
+          # Start in the manifest repository for this block
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo 
+          pwd
+          ls -la 
+          MANIFEST_FILE="kubernetes/backend-eu-west-2.yaml" # Now relative to manifest repo root
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
 
-          echo "Updating image in $MANIFEST_FILE"
+          echo "Updating image in $(pwd)/$MANIFEST_FILE" # Show full path for clarity
           echo "New image: $NEW_IMAGE_URI"
-          pwd
-          ls -la
-          # Removed 'cd AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes' here
-          # sed will operate from the default working directory, using the full path
+
           sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
 
           # Check if the file was modified and prepare for commit
-          # Note: The 'git diff' command runs from the manifest-repo directory
-          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          if git diff --exit-code kubernetes/backend-eu-west-2.yaml; then
+          if git diff --exit-code "$MANIFEST_FILE"; then
             echo "::set-output name=file_modified::false"
           else
             echo "::set-output name=file_modified::true"
-            git --no-pager diff kubernetes/backend-eu-west-2.yaml # Optional: show diff
+            git --no-pager diff "$MANIFEST_FILE" # Optional: show diff
           fi
-          # Go back to the root of the runner's workspace for subsequent steps
-          cd - > /dev/null # Redirect output of cd - to null to prevent printing old path
+          # No need to cd back, as the next run block will start fresh.
 
       - name: Commit and Push Primary Manifest Changes
         if: steps.update_primary_manifest.outputs.file_modified == 'true'
         run: |
+          # Start in the manifest repository for this block to run git commands
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -171,9 +170,6 @@ jobs:
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
-
-      - name: Deploy to Primary EKS Cluster
-        run: kubectl apply -f AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml
 
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
