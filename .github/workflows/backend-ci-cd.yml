@@ -151,12 +151,11 @@ jobs:
 
           # Check if the file was modified and prepare for commit
           if git diff --exit-code "$MANIFEST_FILE"; then
-            echo "file_modified=false" >> $GITHUB_OUTPUT # Updated to GITHUB_OUTPUT
+            echo "file_modified=false" >> $GITHUB_OUTPUT 
           else
-            echo "file_modified=true" >> $GITHUB_OUTPUT # Updated to GITHUB_OUTPUT
-            git --no-pager diff "$MANIFEST_FILE" # Optional: show diff
+            echo "file_modified=true" >> $GITHUB_OUTPUT 
+            git --no-pager diff "$MANIFEST_FILE" 
           fi
-          # No need to cd back, as the next run block will start fresh.
 
       - name: Commit and Push Primary Manifest Changes
         if: steps.update_primary_manifest.outputs.file_modified == 'true'
@@ -180,7 +179,6 @@ jobs:
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
       # ----------------------------------------------------------------------
-
       - name: Configure AWS Credentials (us-east-1) for DR EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -204,12 +202,11 @@ jobs:
 
           # Check if the file was modified and prepare for commit
           if git diff --exit-code "$MANIFEST_FILE"; then
-            echo "file_modified=false" >> $GITHUB_OUTPUT # Updated to GITHUB_OUTPUT
+            echo "file_modified=false" >> $GITHUB_OUTPUT 
           else
-            echo "file_modified=true" >> $GITHUB_OUTPUT # Updated to GITHUB_OUTPUT
-            git --no-pager diff "$MANIFEST_FILE" # Optional: show diff
+            echo "file_modified=true" >> $GITHUB_OUTPUT 
+            git --no-pager diff "$MANIFEST_FILE" 
           fi
-          # No need to cd back.
 
       - name: Commit and Push DR Manifest Changes
         if: steps.update_dr_manifest.outputs.file_modified == 'true'
