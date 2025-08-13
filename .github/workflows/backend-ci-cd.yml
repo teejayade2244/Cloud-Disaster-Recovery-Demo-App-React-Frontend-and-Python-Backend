@@ -193,8 +193,8 @@ jobs:
       - name: Deploy to Primary EKS Cluster
         run: |
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          kubectl create secret generic backend --from-literal=DB_SECRET_ARN=arn:aws:secretsmanager:eu-west-2:${{ vars.AWS_ACCOUNT_ID }}:secret:production-eu-west-2-primary-db-credentials-dPSimd  --from-literal=AWS_REGION=us-east-1 -n aura-flow-dev --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f kubernetes/backend-eu-west-2.yaml 
-          kubectl create secret generic backend --from-literal=DB_SECRET_ARN=arn:aws:secretsmanager:eu-west-2:${{ vars.AWS_ACCOUNT_ID }}:secret:production-eu-west-2-primary-db-credentials-dPSimd --from-literal=AWS_REGION=eu-west-2 -n aura-flow-dev
 
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
@@ -251,7 +251,7 @@ jobs:
         run: |
           # Change directory to the manifest repository before running kubectl
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          kubectl create secret generic backend --from-literal=DB_SECRET_ARN=arn:aws:secretsmanager:us-east-1:${{ vars.AWS_ACCOUNT_ID }}:secret:disasterrecovery-us-east-1-replica-db-credentials-griurw --from-literal=AWS_REGION=us-east-1 -n aura-flow-dev
+          kubectl create secret generic backend --from-literal=DB_SECRET_ARN=arn:aws:secretsmanager:us-east-1:${{ vars.AWS_ACCOUNT_ID }}:secret:disasterrecovery-us-east-1-replica-db-credentials-griurw --from-literal=AWS_REGION=us-east-1 -n aura-flow-dev --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f kubernetes/backend-us-east-1.yaml 
          
           
