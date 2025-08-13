@@ -1,0 +1,221 @@
+name: Frontend CI/CD Pipeline
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Frontend-app/**'
+      - '.github/workflows/frontend-ci-cd.yml' 
+  pull_request:
+    branches:
+      - "*" 
+    paths:
+      - 'Frontend-app/**'
+      - '.github/workflows/frontend-ci-cd.yml'
+
+# Permissions required for OIDC authentication and checking out/pushing code
+permissions:
+  id-token: write 
+  contents: write 
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted 
+
+    steps:
+      - name: Checkout Frontend-app repository code
+        uses: actions/checkout@v4
+        with:
+          path: Frontend-app 
+
+      - name: Checkout Kubernetes Manifests repository
+        uses: actions/checkout@v4
+        with:
+          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo 
+          ref: master 
+          token: ${{ secrets.REPO_PAT }}
+          path: AWS-Cloud-Disaster-Recovery-Manifest-Repo
+
+      # --- Configure AWS Credentials using OIDC (for eu-west-2 by default) ---
+      - name: Configure AWS Credentials (eu-west-2)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: eu-west-2 
+
+      # --- Setup Node.js Environment ---
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' 
+
+      - name: Install Frontend Dependencies
+        working-directory: ./Frontend-app
+        run: npm install 
+      
+      - name: Run Trivy FS Scan for Dependencies
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          input: './Frontend-app'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: 1
+
+      # --- Docker Build ---
+      - name: Build Frontend Docker Image
+        working-directory: ./Frontend-app
+        env:
+          FRONTEND_ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }} 
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $FRONTEND_ECR_REPOSITORY:$IMAGE_TAG .
+
+      # --- Login and Push to Primary ECR (eu-west-2) ---
+      - name: Login to Amazon ECR (eu-west-2)
+        id: login-ecr-primary
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          aws-region: eu-west-2
+
+      - name: Push Frontend Docker Image to Primary ECR (eu-west-2)
+        working-directory: ./Frontend-app
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-primary.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }} 
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Get Primary Frontend ECR Image URI
+        id: ecr_image_uri_primary_frontend
+        run: |
+          ECR_URI="${{ steps.login-ecr-primary.outputs.registry }}/${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          echo "ECR_IMAGE_URI_PRIMARY_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
+
+      # --- Login and Push to DR ECR (us-east-1) ---
+      - name: Configure AWS Credentials (us-east-1) for DR ECR
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR (us-east-1)
+        id: login-ecr-dr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          aws-region: us-east-1
+
+      - name: Push Frontend Docker Image to DR ECR (us-east-1)
+        working-directory: ./Frontend-app
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-dr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.FRONTEND_DR_ECR_REPOSITORY_NAME }} 
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Get DR Frontend ECR Image URI
+        id: ecr_image_uri_dr_frontend
+        run: |
+          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.FRONTEND_DR_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          echo "ECR_IMAGE_URI_DR_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
+
+      # ----------------------------------------------------------------------
+      # --- CD START: Deploy to Primary EKS Cluster (eu-west-2) ---
+      # ----------------------------------------------------------------------
+
+      - name: Configure AWS Credentials (eu-west-2) for Primary EKS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: eu-west-2
+
+      - name: Update Primary Frontend Manifest and Commit
+        id: update_primary_manifest_frontend
+        run: |
+          # Change directory to the manifest repository
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          
+          MANIFEST_FILE="kubernetes/frontend-eu-west-2.yaml" # Specific frontend primary manifest
+          NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary_frontend.outputs.ECR_IMAGE_URI_PRIMARY_FRONTEND }}"
+
+          echo "Updating image in $(pwd)/$MANIFEST_FILE"
+          echo "New image: $NEW_IMAGE_URI"
+
+          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+          
+          # Check if the file was modified and prepare for commit
+          if git diff --exit-code "$MANIFEST_FILE"; then
+            echo "file_modified=false" >> $GITHUB_OUTPUT
+          else
+            echo "file_modified=true" >> $GITHUB_OUTPUT
+            git --no-pager diff "$MANIFEST_FILE"
+          fi
+
+      - name: Commit and Push Primary Frontend Manifest Changes
+        if: steps.update_primary_manifest_frontend.outputs.file_modified == 'true'
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kubernetes/frontend-eu-west-2.yaml
+          git commit -m "chore: Update primary frontend image to ${{ github.sha }} [skip ci]"
+          git push origin master
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
+      - name: Deploy to Primary EKS Cluster (Frontend)
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          kubectl apply -f kubernetes/frontend-eu-west-2.yaml
+
+      # ----------------------------------------------------------------------
+      # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
+      # ----------------------------------------------------------------------
+
+      - name: Configure AWS Credentials (us-east-1) for DR EKS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Update DR Frontend Manifest and Commit
+        id: update_dr_manifest_frontend
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          
+          MANIFEST_FILE="kubernetes/frontend-us-east-1.yaml" # Specific frontend DR manifest
+          NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr_frontend.outputs.ECR_IMAGE_URI_DR_FRONTEND }}"
+
+          echo "Updating image in $(pwd)/$MANIFEST_FILE"
+          echo "New image: $NEW_IMAGE_URI"
+          
+          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+
+          # Check if the file was modified and prepare for commit
+          if git diff --exit-code "$MANIFEST_FILE"; then
+            echo "file_modified=false" >> $GITHUB_OUTPUT
+          else
+            echo "file_modified=true" >> $GITHUB_OUTPUT
+            git --no-pager diff "$MANIFEST_FILE"
+          fi
+
+      - name: Commit and Push DR Frontend Manifest Changes
+        if: steps.update_dr_manifest_frontend.outputs.file_modified == 'true'
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add kubernetes/frontend-us-east-1.yaml
+          git commit -m "chore: Update DR frontend image to ${{ github.sha }} [skip ci]"
+          git push origin master
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
+
+      - name: Deploy to DR EKS Cluster (Frontend)
+        run: |
+          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
+          kubectl apply -f kubernetes/frontend-us-east-1.yaml

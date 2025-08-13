@@ -67,7 +67,7 @@ jobs:
       - name: Build Backend Docker Image
         working-directory: ./Backend-app
         env:
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }} # For local image tag
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t ${{ vars.ECR_REPOSITORY_NAME }}:$IMAGE_TAG .
@@ -127,7 +127,6 @@ jobs:
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to Primary EKS Cluster (eu-west-2) ---
       # ----------------------------------------------------------------------
-
       - name: Configure AWS Credentials (eu-west-2) for Primary EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
