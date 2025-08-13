@@ -51,7 +51,9 @@ jobs:
 
       - name: Install Backend Python Dependencies
         working-directory: ./Backend-app
-        run: pip install -r requirements.txt
+        run: |
+          ls -la
+          pip install -r requirements.txt
 
       # --- Scan Dependencies for Vulnerabilities (using Trivy FS Scan) ---
       - name: Run Trivy FS Scan for Dependencies
