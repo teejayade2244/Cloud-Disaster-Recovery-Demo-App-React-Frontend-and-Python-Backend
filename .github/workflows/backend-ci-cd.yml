@@ -134,12 +134,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: eu-west-2
 
-      - name: Setup kubectl for Primary Cluster
-        uses: aws-actions/amazon-eks-setup@v2
-        with:
-          cluster-name: ${{ vars.EKS_CLUSTER_NAME }} # Primary EKS cluster name
-          aws-region: eu-west-2
-
       - name: Update Primary Manifest and Commit
         id: update_primary_manifest
         run: |
@@ -191,12 +185,6 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Setup kubectl for DR Cluster
-        uses: aws-actions/amazon-eks-setup@v2
-        with:
-          cluster-name: ${{ vars.DR_EKS_CLUSTER_NAME }} # DR EKS cluster name
           aws-region: us-east-1
 
       - name: Update DR Manifest and Commit
