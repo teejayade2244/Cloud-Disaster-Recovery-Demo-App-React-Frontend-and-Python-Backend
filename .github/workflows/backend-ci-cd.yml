@@ -192,7 +192,9 @@ jobs:
         run: |
           # Change directory to the manifest repository
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          MANIFEST_FILE="kubernetes/backend-us-east-1.yaml" # Path is now relative to this directory
+          pwd
+          ls -la
+          MANIFEST_FILE="kubernetes/backend-us-east-1.yaml" 
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr.outputs.ECR_IMAGE_URI_DR }}"
 
           echo "Updating image in $(pwd)/$MANIFEST_FILE"
