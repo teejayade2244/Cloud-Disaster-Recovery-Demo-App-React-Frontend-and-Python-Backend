@@ -107,8 +107,6 @@ jobs:
           ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }} 
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          ls -la Frontend-app
-          cd Frontend-app
           docker tag ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           cat ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -139,8 +137,6 @@ jobs:
           ECR_REPOSITORY: ${{ vars.FRONTEND_DR_ECR_REPOSITORY_NAME }} 
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          ls -la Frontend-app
-          cd Frontend-app
           docker tag ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
