@@ -63,7 +63,7 @@ export default function Login({ onLoginSuccess }) {
                 transition={{ delay: 0.1, duration: 0.5 }}
                 className="text-3xl sm:text-4xl font-extrabold text-white text-center mb-6"
             >
-                Welcome Back
+                Welcome
             </motion.h2>
 
             <motion.form onSubmit={handleLogin} className="space-y-6">
