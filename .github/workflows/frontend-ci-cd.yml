@@ -51,7 +51,9 @@ jobs:
 
       - name: Install Frontend Dependencies
         working-directory: ./Frontend-app
-        run: npm install 
+        run: |
+          ls -la
+          npm install 
       
       - name: Run Trivy FS Scan for Dependencies
         uses: aquasecurity/trivy-action@master
