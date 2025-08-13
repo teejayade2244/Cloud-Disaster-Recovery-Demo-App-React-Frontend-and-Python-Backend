@@ -179,7 +179,6 @@ jobs:
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
       # ----------------------------------------------------------------------
-      
       - name: Configure AWS Credentials (us-east-1) for DR EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
