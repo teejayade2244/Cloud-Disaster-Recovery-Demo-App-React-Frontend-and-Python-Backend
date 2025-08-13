@@ -199,7 +199,7 @@ jobs:
 
           echo "Updating image in $(pwd)/$MANIFEST_FILE"
           echo "New image: $NEW_IMAGE_URI"
-
+          
           sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
 
           # Check if the file was modified and prepare for commit
@@ -223,7 +223,6 @@ jobs:
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
-
       - name: Deploy to DR EKS Cluster
         run: |
           # Change directory to the manifest repository before running kubectl
