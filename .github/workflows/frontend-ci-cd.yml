@@ -69,7 +69,7 @@ jobs:
       - name: Build Frontend Docker Image
         working-directory: ./Frontend-app
         env:
-          FRONTEND_ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }} 
+          FRONTEND_ECR_REPOSITORY: ${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }} 
           IMAGE_TAG: ${{ github.sha }}
         run: |
           ls -la Frontend-app
@@ -80,7 +80,7 @@ jobs:
       - name: Run Trivy Image Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}'
+          image-ref: '${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
@@ -104,16 +104,16 @@ jobs:
         working-directory: ./Frontend-app
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-primary.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }} 
+          ECR_REPOSITORY: ${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }} 
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker tag ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Get Primary Frontend ECR Image URI
         id: ecr_image_uri_primary_frontend
         run: |
-          ECR_URI="${{ steps.login-ecr-primary.outputs.registry }}/${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          ECR_URI="${{ steps.login-ecr-primary.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
           echo "ECR_IMAGE_URI_PRIMARY_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
 
       # --- Login and Push to DR ECR (us-east-1) ---
@@ -133,16 +133,16 @@ jobs:
         working-directory: ./Frontend-app
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-dr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.FRONTEND_DR_ECR_REPOSITORY_NAME }} 
+          ECR_REPOSITORY: ${{ vars.DR_FRONTEND_ECR_REPOSITORY_NAME }} 
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker tag ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Get DR Frontend ECR Image URI
         id: ecr_image_uri_dr_frontend
         run: |
-          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.FRONTEND_DR_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
           echo "ECR_IMAGE_URI_DR_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
 
       # ----------------------------------------------------------------------
