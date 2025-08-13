@@ -140,7 +140,7 @@ jobs:
           MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
           ls -la 
-          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes
+          pwd
           # Replace the image in the PRIMARY manifest
           sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
           
