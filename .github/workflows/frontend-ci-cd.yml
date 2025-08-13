@@ -143,7 +143,7 @@ jobs:
       - name: Get DR Frontend ECR Image URI
         id: ecr_image_uri_dr_frontend
         run: |
-          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
+          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.DR_FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
           echo "ECR_IMAGE_URI_DR_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
 
       # ----------------------------------------------------------------------
@@ -164,18 +164,17 @@ jobs:
       - name: Update Primary Frontend Manifest and Commit
         id: update_primary_manifest_frontend
         run: |
-          # Change directory to the manifest repository
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
           
-          MANIFEST_FILE="kubernetes/frontend-eu-west-2.yaml" # Specific frontend primary manifest
+          MANIFEST_FILE="kubernetes/frontend-eu-west-2.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary_frontend.outputs.ECR_IMAGE_URI_PRIMARY_FRONTEND }}"
 
           echo "Updating image in $(pwd)/$MANIFEST_FILE"
           echo "New image: $NEW_IMAGE_URI"
 
-          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+          # More robust sed command that preserves existing indentation
+          sed -i "s|image:.*|image: ${NEW_IMAGE_URI}|g" "$MANIFEST_FILE"
           
-          # Check if the file was modified and prepare for commit
           if git diff --exit-code "$MANIFEST_FILE"; then
             echo "file_modified=false" >> $GITHUB_OUTPUT
           else
@@ -220,15 +219,15 @@ jobs:
         run: |
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
           
-          MANIFEST_FILE="kubernetes/frontend-us-east-1.yaml" # Specific frontend DR manifest
+          MANIFEST_FILE="kubernetes/frontend-us-east-1.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr_frontend.outputs.ECR_IMAGE_URI_DR_FRONTEND }}"
 
           echo "Updating image in $(pwd)/$MANIFEST_FILE"
           echo "New image: $NEW_IMAGE_URI"
           
-          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+          # More robust sed command that preserves existing indentation
+          sed -i "s|image:.*|image: ${NEW_IMAGE_URI}|g" "$MANIFEST_FILE"
 
-          # Check if the file was modified and prepare for commit
           if git diff --exit-code "$MANIFEST_FILE"; then
             echo "file_modified=false" >> $GITHUB_OUTPUT
           else
