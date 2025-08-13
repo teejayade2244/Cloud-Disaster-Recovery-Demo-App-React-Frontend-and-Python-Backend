@@ -52,7 +52,8 @@ jobs:
       - name: Install Frontend Dependencies
         working-directory: ./Frontend-app
         run: |
-          ls -la
+          ls -la Frontend-app
+          cd Frontend-app
           npm install 
       
       - name: Run Trivy FS Scan for Dependencies
