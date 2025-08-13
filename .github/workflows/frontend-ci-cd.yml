@@ -112,6 +112,8 @@ jobs:
 
       - name: Get Primary Frontend ECR Image URI
         id: ecr_image_uri_primary_frontend
+        env:
+          ECR_REPOSITORY: ${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }}
         run: |
           ECR_URI="${{ steps.login-ecr-primary.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
           echo "ECR_IMAGE_URI_PRIMARY_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
@@ -139,14 +141,12 @@ jobs:
         run: |
           docker tag $CURRENT_TAG:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Get Primary Frontend ECR Image URI
-        id: ecr_image_uri_primary_frontend
-        env:
-          ECR_REPOSITORY: ${{ vars.PRY_FRONTEND_ECR_REPOSITORY_NAME }}
+          
+      - name: Get DR Frontend ECR Image URI
+        id: ecr_image_uri_dr_frontend
         run: |
-          ECR_URI="${{ steps.login-ecr-primary.outputs.registry }}/$ECR_REPOSITORY:${{ github.sha }}"
-          echo "ECR_IMAGE_URI_PRIMARY_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
+          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.DR_FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
+          echo "ECR_IMAGE_URI_DR_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to Primary EKS Cluster (eu-west-2) ---
       # ----------------------------------------------------------------------
@@ -209,12 +209,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: us-east-1
-      #    
-      - name: Get DR Frontend ECR Image URI
-        id: ecr_image_uri_dr_frontend
-        run: |
-          ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.DR_FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
-          echo "ECR_IMAGE_URI_DR_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
 
       - name: Configure kubectl for DR EKS Cluster (us-east-1)
         run: |
