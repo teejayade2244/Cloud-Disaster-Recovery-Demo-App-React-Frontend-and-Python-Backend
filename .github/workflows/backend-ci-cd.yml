@@ -136,6 +136,7 @@ jobs:
 
       - name: Update Primary Manifest and Commit
         id: update_primary_manifest
+        working-directory: AWS-Cloud-Disaster-Recovery-Manifest-Repo
         run: |
           MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
@@ -181,6 +182,7 @@ jobs:
 
       - name: Update DR Manifest and Commit
         id: update_dr_manifest
+        working-directory: AWS-Cloud-Disaster-Recovery-Manifest-Repo
         run: |
           MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-us-east-1.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr.outputs.ECR_IMAGE_URI_DR }}"
