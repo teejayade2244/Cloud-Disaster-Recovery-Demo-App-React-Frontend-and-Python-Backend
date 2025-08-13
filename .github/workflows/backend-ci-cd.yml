@@ -136,7 +136,7 @@ jobs:
       # --- Configure kubectl for Primary EKS ---
       - name: Configure kubectl for Primary EKS
         run: |
-          aws eks update-kubeconfig --region eu-west-2 --name ${{ vars.ECR_REPOSITORY_NAME }}
+          aws eks update-kubeconfig --region eu-west-2 --name ${{ vars.EKS_CLUSTER_NAME }}
 
       # --- Update Primary Manifest and Commit ---
       - name: Update Primary Manifest and Commit
