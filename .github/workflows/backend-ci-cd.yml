@@ -5,20 +5,18 @@ on:
       - master
     paths:
       - 'Backend-app/**'
-      # Remove kubernetes/backend.yaml from here - it's handled by gitops now
       - '.github/workflows/backend-ci-cd.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'Backend-app/**'
-      # Remove kubernetes/backend.yaml from here - it's handled by gitops now
       - '.github/workflows/backend-ci-cd.yml'
 
 # Permissions required for OIDC authentication and checking out/pushing code
 permissions:
   id-token: write
-  contents: write # REQUIRED for actions/checkout to checkout and PUSH changes to the manifest repo
+  contents: write 
 
 jobs:
   build-and-deploy:
@@ -28,14 +26,14 @@ jobs:
       - name: Checkout Backend-app repository code
         uses: actions/checkout@v4
         with:
-          path: Backend-app # Checkout the current repo into 'Backend-app' directory
+          path: Backend-app 
 
       - name: Checkout Kubernetes Manifests repository
         uses: actions/checkout@v4
         with:
-          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo # Your manifests repo
-          ref: master # Assuming your manifests are on 'master' branch
-          token: ${{ secrets.REPO_PAT }} # Personal Access Token for write access
+          repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo 
+          ref: master #
+          token: ${{ secrets.REPO_PAT }} 
           path: AWS-Cloud-Disaster-Recovery-Manifest-Repo
 
       # --- Configure AWS Credentials using OIDC (for eu-west-2 by default) ---
@@ -43,7 +41,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
-          aws-region: eu-west-2 # Primary region
+          aws-region: eu-west-2 
 
       # --- Install Python dependencies for scanning (for fs scan if needed) ---
       - name: Set up Python
