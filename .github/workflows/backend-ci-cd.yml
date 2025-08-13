@@ -148,12 +148,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Setup kubectl for DR Cluster
-        uses: aws-actions/amazon-eks-setup@v2
-        with:
-          cluster-name: ${{ vars.DR_EKS_CLUSTER_NAME }} # DR EKS cluster name
-          aws-region: us-east-1
-
       - name: Update Manifest for DR Cluster and Deploy
         run: |
           MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend.yaml"
