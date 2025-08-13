@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: teejayade2244/AWS-Cloud-Disaster-Recovery-Manifest-Repo 
-          ref: master #
+          ref: master 
           token: ${{ secrets.REPO_PAT }} 
           path: AWS-Cloud-Disaster-Recovery-Manifest-Repo
 
@@ -134,38 +134,40 @@ jobs:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: eu-west-2
 
+      # --- Update Primary Manifest and Commit ---
       - name: Update Primary Manifest and Commit
         id: update_primary_manifest
-        working-directory: AWS-Cloud-Disaster-Recovery-Manifest-Repo
         run: |
-          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml"
-          NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
-          ls -la 
-          pwd
-          # Replace the image in the PRIMARY manifest
-          sed -i "/image:/c\        image: ${NEW_IMAGE_URI}" "$MANIFEST_FILE"
+          # First verify the manifest directory exists
+          echo "Current directory: $(pwd)"
+          echo "Manifest repo contents:"
+          ls -la AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/
           
-          # Check if the file was modified and prepare for commit
+          MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml"
+          
+          # Verify file exists before modifying
+          if [ ! -f "$MANIFEST_FILE" ]; then
+            echo "::error::Manifest file not found: $MANIFEST_FILE"
+            exit 1
+          fi
+          
+          NEW_IMAGE_URI="${{ steps.ecr_image_uri_primary.outputs.ECR_IMAGE_URI_PRIMARY }}"
+          
+          # Backup original file
+          cp "$MANIFEST_FILE" "${MANIFEST_FILE}.bak"
+          
+          # Replace the image (using more robust sed command)
+          sed -i "s|image: .*|image: ${NEW_IMAGE_URI}|g" "$MANIFEST_FILE"
+          
+          # Check if the file was modified
           cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
           if git diff --exit-code kubernetes/backend-eu-west-2.yaml; then
             echo "::set-output name=file_modified::false"
           else
             echo "::set-output name=file_modified::true"
+            echo "Changes made to manifest:"
+            git diff kubernetes/backend-eu-west-2.yaml
           fi
-          # Go back to the root of the runner's workspace
-          cd -
-
-      - name: Commit and Push Primary Manifest Changes
-        if: steps.update_primary_manifest.outputs.file_modified == 'true'
-        run: |
-          cd AWS-Cloud-Disaster-Recovery-Manifest-Repo
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add kubernetes/backend-eu-west-2.yaml
-          git commit -m "chore: Update primary backend image to ${{ github.sha }} [skip ci]"
-          git push origin master
-        env:
-          GITHUB_TOKEN: ${{ secrets.REPO_PAT }}
 
       - name: Deploy to Primary EKS Cluster
         run: kubectl apply -f AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-eu-west-2.yaml
@@ -182,7 +184,6 @@ jobs:
 
       - name: Update DR Manifest and Commit
         id: update_dr_manifest
-        working-directory: AWS-Cloud-Disaster-Recovery-Manifest-Repo
         run: |
           MANIFEST_FILE="AWS-Cloud-Disaster-Recovery-Manifest-Repo/kubernetes/backend-us-east-1.yaml"
           NEW_IMAGE_URI="${{ steps.ecr_image_uri_dr.outputs.ECR_IMAGE_URI_DR }}"
