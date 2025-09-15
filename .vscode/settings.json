@@ -4,5 +4,6 @@
         "titleBar.activeBackground": "#720A7E",
         "titleBar.activeForeground": "#FEFBFF"
     },
-    "appService.zipIgnorePattern": ["node_modules{,/**}", ".vscode{,/**}"]
+    "appService.zipIgnorePattern": ["node_modules{,/**}", ".vscode{,/**}"],
+    "appService.showBuildDuringDeployPrompt": false
 }
