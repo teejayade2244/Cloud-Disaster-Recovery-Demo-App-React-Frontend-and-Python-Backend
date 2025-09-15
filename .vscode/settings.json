@@ -1,7 +1,8 @@
 {
-  "workbench.colorCustomizations": {
-    "activityBar.background": "#51075A",
-    "titleBar.activeBackground": "#720A7E",
-    "titleBar.activeForeground": "#FEFBFF"
-  }
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#51075A",
+        "titleBar.activeBackground": "#720A7E",
+        "titleBar.activeForeground": "#FEFBFF"
+    },
+    "appService.zipIgnorePattern": ["node_modules{,/**}", ".vscode{,/**}"]
 }

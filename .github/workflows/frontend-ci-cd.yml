@@ -12,7 +12,6 @@ on:
     paths:
       - 'Frontend-app/**'
       - '.github/workflows/frontend-ci-cd.yml'
-
 # Permissions required for OIDC authentication and checking out/pushing code
 permissions:
   id-token: write 
@@ -49,13 +48,14 @@ jobs:
         with:
           node-version: '20' 
 
+      # --- Install Frontend Dependencies ---
       - name: Install Frontend Dependencies
         working-directory: ./Frontend-app
         run: |
           ls -la Frontend-app
           cd Frontend-app
           npm install 
-      
+       
       - name: Run Trivy FS Scan for Dependencies
         uses: aquasecurity/trivy-action@master
         with:
@@ -141,16 +141,16 @@ jobs:
         run: |
           docker tag $CURRENT_TAG:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          
+
       - name: Get DR Frontend ECR Image URI
         id: ecr_image_uri_dr_frontend
         run: |
           ECR_URI="${{ steps.login-ecr-dr.outputs.registry }}/${{ vars.DR_FRONTEND_ECR_REPOSITORY_NAME }}:${{ github.sha }}"
           echo "ECR_IMAGE_URI_DR_FRONTEND=$ECR_URI" >> $GITHUB_OUTPUT
+
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to Primary EKS Cluster (eu-west-2) ---
       # ----------------------------------------------------------------------
-
       - name: Configure AWS Credentials (eu-west-2) for Primary EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -203,7 +203,6 @@ jobs:
       # ----------------------------------------------------------------------
       # --- CD START: Deploy to DR EKS Cluster (us-east-1) ---
       # ----------------------------------------------------------------------
-
       - name: Configure AWS Credentials (us-east-1) for DR EKS
         uses: aws-actions/configure-aws-credentials@v4
         with:
