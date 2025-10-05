@@ -1,5 +1,4 @@
 name: EC2 Runner Test
-
 on:
   push:
     branches:
