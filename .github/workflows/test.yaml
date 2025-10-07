@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - master
-      
 jobs:
   test-ec2-runner:
     runs-on:  [ec2]
