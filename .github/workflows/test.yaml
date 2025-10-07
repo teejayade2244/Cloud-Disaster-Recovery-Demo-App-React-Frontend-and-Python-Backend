@@ -1,5 +1,4 @@
 name: Test Multiple Runners
-
 on:
   workflow_dispatch:
   push:
