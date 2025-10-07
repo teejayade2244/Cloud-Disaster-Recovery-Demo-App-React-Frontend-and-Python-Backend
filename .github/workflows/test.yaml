@@ -12,7 +12,7 @@ jobs:
       - name: Run job 1
         run: |
           echo "Running Job 1 on $HOSTNAME"
-          sleep 50000
+          sleep 500000
           echo "Job 1 complete ✅"
 
   job2:
