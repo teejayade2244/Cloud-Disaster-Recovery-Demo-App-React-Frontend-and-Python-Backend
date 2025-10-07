@@ -2,8 +2,7 @@ name: EC2 Runner Test
 on:
   push:
     branches:
-      - master
-      
+      - master  
 jobs:
   test-ec2-runner:
     runs-on:  [ec2]
