@@ -11,7 +11,7 @@ jobs:
       - name: Run job 1
         run: |
           echo "Running Job 1 on $HOSTNAME"
-          sleep 500000
+          sleep 50000
           echo "Job 1 complete ✅"
 
   job2:
@@ -20,7 +20,7 @@ jobs:
       - name: Run job 2
         run: |
           echo "Running Job 2 on $HOSTNAME"
-          sleep 50000
+          sleep 5000
           echo "Job 2 complete ✅"
 
   job3:
