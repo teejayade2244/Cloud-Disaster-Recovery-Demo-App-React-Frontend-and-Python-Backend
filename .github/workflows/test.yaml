@@ -13,7 +13,7 @@ jobs:
 
       - name: Print environment info
         run: |
-          echo "✅ This job is running on the EC2 self-hosted runner!"
+          echo "✅ This job is running on the EC2 self-hosted runner! thank you"
           echo "Current time: $(date)"
           uname -a
 
